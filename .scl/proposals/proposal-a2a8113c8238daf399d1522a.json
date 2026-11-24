@@ -1,0 +1,2321 @@
+{
+  "title": "Establish the ASX IOMR candidate for semantic integrity, arbitration, and replay safety",
+  "changes": [
+    {
+      "op": "capture_source",
+      "source": {
+        "alias": "protocol",
+        "path": "docs/protocol.md",
+        "ref": "59a39778b289bb1899e3aa8942e9d72631c405f90a88daf0924359eee9991e42"
+      },
+      "content": "# Protocol\n\nASX is an exchange and agreement protocol. Two agents use it to show that they named the same published meaning, started from the same authoritative state, and applied the same pinned rules. An observer checks the bytes. The protocol does not run an AI model, store an ontology, interpret a workflow, schedule work, or carry packets.\n\nSCL is the modelling language for the requirements in `model/iomr`. The Python library does not import SCL, and agents do not need an SCL runtime to exchange a round record.\n\n## Semantic integrity\n\n<!-- anchor-intent-semantic-integrity -->\n\nIndependent agents agree the declared semantic references and the authoritative starting state before a consequential transition. Matching reference bytes means they named the same publication. It does not mean two models understood that publication in the same way.\n\n<!-- anchor-model-semantic-agreement -->\n\nAgent A offers a canonical decision tied to a semantic reference, a parent hash, and a successor hash. The semantic authority's publication is what the reference names. Agent B checks those bytes and can countersign the same decision bytes. A verifier checks the parent at the commit boundary. Any mismatch stops the exchange.\n\n<!-- anchor-outcome-matching-references -->\n<!-- anchor-rn-matching-references -->\n\nA semantic reference in version 1 is the ASCII token `authority:identifier@frame+revision`. `references_match` is byte equality of the canonical token. Callers who need a snapshot digest put it in the revision slot or in the Mahalath extension. ASX does not fetch the snapshot.\n\n<!-- anchor-outcome-pre-state -->\n<!-- anchor-rn-pre-state -->\n\nThe commit checks the expected parent hash at the same boundary as the state change. A proposal whose parent is no longer current is `stale-parent`. The successor hash is 32 bytes supplied by the proposer and covered by the proposal commitment. ASX does not execute the successor. It binds the hash the agents declared.\n\n<!-- anchor-outcome-joint-certification -->\n<!-- anchor-rn-canonical-bytes -->\n\nJoint certification means independent signatures over the same decision bytes from `docs/arbitration.md`. Different bytes are not the same decision. Duplicate JSON members are not a canonical form: the transcript is binary, and a JSON object presented as a transcript is `malformed-transcript`.\n\n<!-- anchor-outcome-identical-validation-results -->\n<!-- anchor-rn-identical-validation -->\n\nTwo implementations given the same round record produce the same transcript, closed-set digest, challenge, ranking, winner, and rejection codes, or the same halting code. The in-repository checker under `conformance/independent/` is a local cross-check of that rule. An implementation developed outside this repository is still outstanding.\n\n<!-- anchor-outcome-fail-closed -->\n<!-- anchor-rn-fail-closed -->\n\nIf the references differ, the parent does not match, the certificate does not verify, or the ranking is ambiguous, there is no state change and no effect. The library's illustrative stores keep a commit counter and an effect hook so tests can see that a rejection leaves both unchanged.\n\n## Replay safety\n\n<!-- anchor-intent-replay-safety -->\n<!-- anchor-model-replay -->\n\nInvalid, duplicated, stale, or unauthorised exchanges do not commit a second effect. The replay key is:\n\n```text\nSHA256(\"ASX/replay/v1\" || 0x00\n       || u32be(len(round_id)) || round_id\n       || u32be(len(identity)) || identity\n       || proposal_commitment[32]\n       || parent_hash[32])\n```\n\n<!-- anchor-outcome-replay-detection -->\n<!-- anchor-rn-replay -->\n\nA store that already holds the key returns the original receipt with code `replay-receipt`. The illustrative file replay log reloads that key after a process restart on one node. That is not a replicated log.\n\n<!-- anchor-outcome-atomic-rejection -->\n<!-- anchor-rn-atomic -->\n\nA halting rejection is returned as a `Rejection` with a normative code. The illustrative commit path runs the effect hook only after compare-and-swap succeeds. A rejection before that point does not call the hook and does not change the parent.\n\n<!-- anchor-outcome-no-duplicate -->\n<!-- anchor-rn-no-duplicate -->\n\nA successful commit followed by a retry of the same key does not call the effect hook again. Two racing compare-and-swap operations on the illustrative memory store allow one successor.\n\n<!-- anchor-outcome-recovery -->\n<!-- anchor-rn-recovery -->\n\n`IllustrativeJournal` records a prepare record, the new parent, and whether the demonstration effect hook has been marked done. Recovery after `after-apply` runs the hook once. Recovery after the done flag is set does not run it again. If the hook ran in the outside world and the done flag was not stored, recovery can call it again. External exactly-once delivery is not claimed. See `LIMITATIONS` in the package.\n\n<!-- anchor-outcome-consistent-failure -->\n<!-- anchor-rn-precedence -->\n\nThe rejection codes and their order are the list in `docs/arbitration.md`. The same malformed input produces the same code from the reference decoder and the independent decoder. Tests cover truncated transcripts, a JSON object used as a transcript, a little-endian length, an overflowing count, non-ASCII identities, and duplicate identities.\n\n## What a round record contains\n\nThe JSON object accepted by `asx.evaluate` is a test and tooling record, not the normative transcript. The transcript is the binary encoding. Unknown JSON fields, including a transport nonce, are ignored. Fields that are present and malformed still fail closed: a bad admission sequence, a bad hex parent, or a bad asserted priority does not become a different winner.\n\nThe pure function does no I/O. Stores, ledgers, and HMAC keys are separate and illustrative unless a deployment replaces them with a system that actually has the property the class does not claim.\n"
+    },
+    {
+      "op": "capture_source",
+      "source": {
+        "alias": "arbitration",
+        "path": "docs/arbitration.md",
+        "ref": "6705c3a994aaf66a4f5ba456e53abc436556e4d85069f9f55ff06e236c040168"
+      },
+      "content": "# Arbitration\n\n<!-- anchor-intent-deterministic-arbitration -->\n\nConflicting proposals must produce one governed decision that another implementation can recompute from the authenticated round record. Message arrival order is not an input.\n\n<!-- anchor-model-arbitration -->\n\nThe logical process is: proposal submission, authenticated admission, admission closure, canonical set construction, priority evaluation, tie-breaking, decision certification, authoritative commit, then audit and rejection handling. This chapter fixes the bytes for the middle of that process. It does not require a particular database, transport, or cryptographic library beyond SHA-256 and the encodings below.\n\n<!-- anchor-model-policy-pinning -->\n\nA policy steward publishes one policy revision. The round pins that revision's digest. Changing the policy starts a new round.\n\n## Version\n\nCanonicalisation version 1 is identified by the domain tags in this chapter. A round record whose `canonicalisation_version` is not 1 is `unsupported-version`. There is no second encoding, including JSON, that verifiers may accept as the transcript.\n\n## Admission\n\n<!-- anchor-rn-admission -->\n\nA governed identity is authenticated by a proof over the submission binding. The identity string alone is not a proof. The binding is:\n\n```text\n\"ASX/submit/v1\" || 0x00\n|| u32be(len(round_id)) || round_id\n|| u32be(len(identity)) || identity\n|| proposal_commitment[32]\n|| parent_hash[32]\n|| policy_digest[32]\n```\n\n<!-- anchor-rn-one-proposal -->\n\nEach governed identity has at most one eligible proposal in a round. A durable sequencer assigns a strictly increasing admission sequence when the admission commits. The first successfully committed admission for that identity is authoritative. An identical retry, meaning the same identity, proposal commitment, parent hash, and policy digest, returns the original receipt and does not consume another sequence number. A distinct later submission from the same identity is `duplicate-submission`.\n\n<!-- anchor-rn-fixed-context -->\n\nThe round identifier, parent hash, pinned policy digest, and admission rules stay fixed for the round. A submission after closure is `admission-closed`. It is recorded as deferred and is not inserted into the closed set. If the sequencer cannot allocate a sequence, the result is `sequencer-unavailable`. Client clocks, client sequence numbers, gateway arrival times, and a local observer's arrival order do not assign precedence.\n\nThe reference `IllustrativeMemoryAdmission` and `IllustrativeFileAdmission` classes demonstrate these rules in one process or one file. They are not a distributed linearizable sequencer.\n\n## Canonical semantic proposal\n\nA proposal commitment is SHA-256 over a length-prefixed semantic proposal. The semantic proposal is:\n\n```text\n\"ASX/semantic-proposal/v1\" || 0x00\n|| u32be(len(semantic_ref)) || semantic_ref\n|| u32be(len(operation)) || operation\n|| u32be(len(content)) || content\n|| successor_hash[32]\n```\n\n```text\nproposal_commitment =\n  SHA256(\"ASX/proposal/v1\" || 0x00\n         || u32be(len(semantic_proposal)) || semantic_proposal)\n```\n\n`content` is opaque bytes. Transport nonces, request identifiers, and receipt timestamps are not fields of this encoding. Text fields are the ASCII grammars below. Implementations do not Unicode-normalize. A value outside the grammar is rejected, so two different normalizations cannot both be accepted.\n\n| Field | Grammar | Maximum |\n| --- | --- | --- |\n| identity, round id, policy revision | `[A-Za-z0-9][A-Za-z0-9._:-]{0,127}` | 128 bytes |\n| semantic reference | `[A-Za-z0-9][A-Za-z0-9._:@+/-]{0,255}` | 256 bytes |\n| operation | `[A-Za-z0-9_-]{1,128}` | 128 bytes |\n| content | opaque bytes | 1,048,576 bytes |\n| eligible entries | — | 1,024 |\n| extensions | — | 16, payload 4,096 bytes each |\n\nIntegers are big-endian. `u32be` is unsigned. `i64be` is signed two's complement. A length that overruns the buffer, a count above the version-1 maximum, trailing bytes, or a domain mismatch is `malformed-transcript`.\n\n## Canonical closed set\n\n<!-- anchor-rn-transcript -->\n\nEligible entries are not stored in admission order. Each entry is:\n\n```text\nu32be(len(identity)) || identity || proposal_commitment[32] || i64be(effective_priority)\n```\n\nEntries are sorted by ascending unsigned `identity` bytes. Distinct identities need no secondary sort key. The transcript is:\n\n```text\n\"ASX/closed-set/v1\" || 0x00 || u32be(entry_count) || concat(sorted entries)\n```\n\n`S = SHA256(transcript)`.\n\n<!-- anchor-rn-sequence-excluded -->\n\nThe admission sequence is authenticated in a separate admission receipt:\n\n```text\n\"ASX/admission/v1\" || 0x00\n|| u32be(len(round_id)) || round_id\n|| u32be(len(identity)) || identity\n|| proposal_commitment[32]\n|| parent_hash[32]\n|| policy_digest[32]\n|| u64be(sequence)\n```\n\nThat sequence is not part of the eligible-set transcript, the closed-set digest, or the derived challenge. Replacing the sequence on an otherwise identical eligible set does not change `S` or the winner. Verifying who was admitted first requires the signed admission log. Ranking reproducibility does not prove that the admission was fair.\n\nDuplicate identities are `duplicate-identity` and are detected before `S` is accepted. A non-grammar identity is `noncanonical-identity`. A non-grammar proposal field is `noncanonical-proposal`. These checks happen before a winner is selected. A verifier that sees them in a purported eligible set halts the round rather than dropping a different subset than another verifier.\n\n## Derived challenge\n\n<!-- anchor-outcome-ranking -->\n\n```text\nQ = SHA256(\"ASX/challenge/v1\" || 0x00\n           || u32be(len(round_id)) || round_id\n           || parent_hash[32]\n           || policy_digest[32]\n           || S[32])\n```\n\n`Q` is a pure function of those inputs. Two implementations with the same authenticated inputs produce the same `Q`.\n\n<!-- anchor-rn-grinding -->\n\n`Q` is not independent randomness and it is not grinding resistance. A proposer who can guess the rest of the closed set can try semantic bodies offline and submit the body with the preferred tie digest. One admission per identity removes multiple admitted chances. It does not remove that offline search. This specification does not claim grinding resistance. The reference result field `grinding_resistance` is the string `unproven`.\n\n## Priority and tie-breaking\n\n<!-- anchor-rn-priority -->\n\nEffective priority comes from the pinned policy and the proposal operation. A priority asserted by the proposer is not an input. If an authenticated record carries `asserted_priority` and it differs from the policy value, the round halts with `priority-untrusted`. An operation with no rule is `ineligible-operation`.\n\n<!-- anchor-rn-tie -->\n\nAmong eligible entries:\n\n1. Higher policy priority outranks lower policy priority.\n2. For equal priority, compute `tie = SHA256(\"ASX/tie/v1\" || 0x00 || Q[32] || proposal_commitment[32])`.\n3. Select the minimum unsigned 32-byte tie digest.\n4. If two entries in the winning priority class have the same tie digest, halt with `tie-collision`.\n\n<!-- anchor-rn-collision -->\n\nDo not break that tie with admission order, identity order, a clock, or \"first decoded\". Identity order is only a stable display order for the published ranking list after the winner is unique. A claimed commitment that does not match the semantic bytes is `commitment-mismatch`. Different semantic bytes with one computed commitment are `commitment-collision`. Both halt with no winner.\n\nThis tie digest replaces the earlier unchallenged rule that compared SHA-256 of the semantic body directly. ARB-05's \"smaller digest\" means this challenge-bound tie digest.\n\n<!-- anchor-rn-single-mode -->\n\nThere is one arbitration mode. If no authoritative closure is available, the result is `arbiter-unavailable`. Implementations do not fall back to first arrival, first commit, or a local subset.\n\n## Policy bytes\n\n<!-- anchor-rn-frozen-policy -->\n\n```text\n\"ASX/policy/v1\" || 0x00\n|| u32be(len(revision)) || revision\n|| u32be(rule_count)\n|| repeat, sorted by operation bytes:\n     u32be(len(operation)) || operation || i64be(priority)\n|| u32be(len(fairness)) || fairness\n```\n\nThe policy digest is SHA-256 of those bytes. A declared digest that differs is `policy-stale`. Rule order in a JSON test record does not change the digest, because the encoder sorts rules. Duplicate rules are `policy-invalid`.\n\n<!-- anchor-outcome-fairness -->\n<!-- anchor-rn-fairness -->\n\n`fairness` is empty or exactly `max-wins:<integer>` with no spaces and a value from 0 to 1,000,000. Empty means no extra schedule. Unknown fairness text is `policy-invalid`, not an invitation to invent a scheduler. `max-wins` requires an explicit prior-win map. A missing map is `policy-invalid`. A count greater than or equal to the cap is `fairness-violation` for the whole round, not a silent drop of one entry. Absent the directive, prior wins do not change ranking.\n\n## Decision certificate\n\n<!-- anchor-outcome-recorded-rejection -->\n<!-- anchor-rn-rejection -->\n\nA successful decision names one winner and a rejection for every other eligible identity. Rejection codes on a success are `lower-priority` or `higher-tie-digest`. They are sorted by identity for the certificate. Halting codes are not mixed into that list, because a halt has no winner.\n\nDecision bytes, without the signature:\n\n```text\n\"ASX/decision/v1\" || 0x00\n|| u32be(len(round_id)) || round_id\n|| parent_hash[32] || policy_digest[32] || S[32] || Q[32]\n|| u32be(len(winner_identity)) || winner_identity\n|| winner_commitment[32] || i64be(winner_priority) || winner_tie[32]\n|| u32be(rejection_count)\n|| repeat, sorted by identity:\n     u32be(len(identity)) || identity || u32be(len(code)) || code\n```\n\nThe signature algorithm is not fixed by version 1. The reference HMAC-SHA256 helper is illustrative. A bad signature or a payload that does not match the recomputed decision is `certificate-mismatch`. A payload that is not this encoding is `malformed-certificate`.\n\n<!-- anchor-outcome-recomputation -->\n<!-- anchor-rn-recompute -->\n\nA third party that receives the round record, the pinned policy, and the semantic bytes recomputes the transcript, `S`, `Q`, the ranking, the winner, and the rejection codes. Disagreement halts certification.\n\n## Commit\n\n<!-- anchor-outcome-one-successor -->\n<!-- anchor-rn-selection -->\n<!-- anchor-rn-commit -->\n\nSelection does not change state. The selected successor is committed with compare-and-swap against the expected parent, or an equivalent serialisable check. A stale or competing parent is `stale-parent`. A caller who is not the certified winner is `unauthorized`. Losing proposals are not rebased onto the new parent. A second commit of the same replay key returns `replay-receipt` and does not run the effect again.\n\nTwo committers racing from the same parent produce at most one successful swap in a correct store. The illustrative memory store demonstrates that race inside one process. It does not demonstrate a distributed log.\n\n## Failure precedence\n\nThe first matching check wins. Later codes are not reported once an earlier check has failed.\n\n1. `unsupported-version`\n2. `malformed-transcript`\n3. `malformed-certificate`\n4. `noncanonical-identity`\n5. `noncanonical-proposal`\n6. `duplicate-identity`\n7. `commitment-collision`\n8. `commitment-mismatch`\n9. `ineligible-operation`\n10. `priority-untrusted`\n11. `policy-invalid`\n12. `policy-stale`\n13. `fairness-violation`\n14. `closed-set-mismatch`\n15. `extension-invalid`\n16. `extension-critical-unknown`\n17. `admission-unauthenticated`\n18. `duplicate-submission`\n19. `admission-closed`\n20. `sequencer-unavailable`\n21. `arbiter-unavailable`\n22. `empty-closed-set`\n23. `tie-collision`\n24. `certificate-mismatch`\n25. `unauthorized`\n26. `stale-parent`\n27. `commit-rejected`\n\nSuccessful outcome codes, which are not halts: `lower-priority`, `higher-tie-digest`, `replay-receipt`, `committed`.\n\nWhen a closure is missing, a partition hides the sequencer, a certificate is malformed, or the parent is disputed, the implementation refuses the transition. Progress is optional. An unauthorised or stale effect is not.\n\n## Extensions and the transcript\n\n<!-- anchor-rn-extensions -->\n\nExtension envelopes are outside the closed-set transcript. A noncritical extension, known or unknown, must not change `S`, `Q`, or the winner. A critical extension with no enabled handler is `extension-critical-unknown`. An enabled handler that rejects the payload is `extension-invalid` and yields no winner. Handlers do not return a priority.\n"
+    },
+    {
+      "op": "capture_source",
+      "source": {
+        "alias": "security",
+        "path": "docs/security.md",
+        "ref": "e4987b151fbb7059e253ac2799a5f97738b5e479499e813fb0c2841e48b0008c"
+      },
+      "content": "# Security\n\n<!-- anchor-trust -->\n\nASX tells an observer what to recompute. It does not make the surrounding systems honest.\n\n| Boundary | Trusted for | Not trusted for |\n| --- | --- | --- |\n| Proposing agent | Submitting a semantic body it is willing to stand behind | Priority, time, arrival order, identity without a proof |\n| Semantic authority | The published bytes named by a reference | How a model will interpret those bytes |\n| Policy authority | The priority table and fairness directive inside the pinned digest | Changing a round that already pinned a digest |\n| Admission sequencer | Which submission from an identity committed first | The ranking digest. Sequence is outside `S` and `Q` |\n| Commit authority | Serialisable compare-and-swap against the parent | Executing the successor, or inventing a winner when closed-set digests disagree |\n| Verifier | Recomputation from the authenticated record | Discovering facts that were not in the record |\n| Extension handler | Shape checks for an optional profile | Priority, transcript bytes, or core ranking |\n\nA network partition, a missing arbiter, or a missing sequencer stops new admissions and new commits. It does not authorise a local first-arrival decision.\n\n<!-- anchor-grinding -->\n\nThe derived challenge is public and deterministic. An agent can evaluate alternative semantic bodies before admission and keep the one with the better tie digest. Deterministic tie-breaking can pass while a grinding-resistance claim fails. Version 1 does not add an after-closure entropy source. Do not describe `Q` as a random beacon.\n\nIdentical semantic proposals from two identities at the same priority halt with `tie-collision`. Falling back to admission order would put the sequencer's sequence back into the winner. The halt is deliberate. It can stall a round in which two agents proposed the same body. Safety is preferred to progress.\n\n<!-- anchor-illustrative-stores -->\n\n`IllustrativeHmacKey` is a test authenticator with a shared secret of at least 16 bytes. It is not a production signature, a PKI, or a statement that HMAC-SHA256 will be the eventual algorithm. Receipts signed with it show the shape of an authenticated admission. They do not show that a deployment's keys are managed.\n\n`IllustrativeMemoryState`, `IllustrativeMemoryAdmission`, `IllustrativeMemoryReplay`, and their file and journal counterparts are single-process or single-node demonstrations. They use a lock or an atomic file replace. They do not provide distributed linearizability, crash safety under concurrent processes, or exactly-once external side effects. `LIMITATIONS` in the package says so, and a test fails if those flags are flipped without a corresponding demonstration.\n\nThe effect hook on the journal can run twice when a crash falls between the external side effect and the done flag. Callers that need exactly-once effects need an idempotent effect and a store this repository does not yet provide.\n\nUnknown critical extensions fail closed. Unknown noncritical extensions are ignored and are excluded from the transcript, so they cannot be used to move a tie digest. A critical extension that is understood still cannot change priority: a handler returns no rank.\n\nSHA-256 collision resistance is assumed for `commitment-collision`. The test for equal tie digests uses identical commitments, which any implementation can construct. It does not construct a SHA-256 collision.\n\nNo security audit of this repository has been performed. The CI `bandit` job is a static scan of the reference library, not a review of the protocol.\n"
+    },
+    {
+      "op": "capture_source",
+      "source": {
+        "alias": "conformance",
+        "path": "docs/conformance.md",
+        "ref": "b3e9d32d9843daba8b802ba4c4748f49df58709ba0ff06468fe839dcb8f60e0c"
+      },
+      "content": "# Conformance\n\n<!-- anchor-vectors -->\n\nThe published corpus is `conformance/vectors/v1/corpus.json`. Each positive case stores the round-record inputs and the transcript hex, closed-set digest, challenge, ranking, winner, and rejections. Those expected fields were produced only when `src/asx` and `conformance/independent/recompute.py` returned the same success object. Negative cases store the shared halting code.\n\nRegenerate with:\n\n```bash\nPYTHONPATH=src python3 scripts/generate_corpus.py\n```\n\nThe generator refuses to write a case on which the two computations disagree. `tests/test_corpus.py` loads the file and checks both computations again. Editing an expected digest by hand fails that test.\n\n<!-- anchor-arb-cases -->\n\n| Case | What is checked | Where it runs | Verification |\n| --- | --- | --- | --- |\n| ARB-01 | No closure, no first-arrival commit | illustrative store test | locally tested |\n| ARB-02 | Late admission leaves the admitted set unchanged | illustrative admission test | locally tested |\n| ARB-03 | A local digest that differs cannot match the authoritative digest | `check_closed_set` | locally tested |\n| ARB-04 | Policy priority, not a self-declared priority | pure `evaluate` | locally cross-checked |\n| ARB-05 | Equal priority, lowest tie digest, order does not matter | pure `evaluate` | locally cross-checked |\n| ARB-06 | Claimed commitment alias halts | pure `evaluate` | locally cross-checked |\n| ARB-07 | Mixed-priority permutations share digest and winner | pure `evaluate` | locally cross-checked |\n| ARB-08 | One compare-and-swap wins a race | illustrative memory store | locally tested |\n| ARB-09 | Selection without commit leaves state and effects unchanged | illustrative store | locally tested |\n| ARB-10 | Losing successor against the old parent is `stale-parent` | illustrative store | locally tested |\n| ARB-11 | A revised policy does not rewrite a pinned round | pure `evaluate` | locally cross-checked |\n| ARB-12 | Same rule as ARB-03 for competing local sets | `check_closed_set` | locally tested |\n| ARB-13 | Replay returns the receipt and does not repeat the effect | illustrative replay log | locally tested |\n| ARB-14 | Independent checker recomputes the winner | both implementations | locally cross-checked |\n| ARB-15 | Only an explicit `max-wins` cap is enforced | pure `evaluate` | locally cross-checked |\n| ARB-16 | Noncritical Deborah payload ignored; critical unknown halts | pure `evaluate` | locally cross-checked |\n| ARB-17 | Transport nonce is not a ranking input | pure `evaluate` | locally cross-checked |\n| ARB-18 | Identity byte order, including case | pure `evaluate` | locally cross-checked |\n| ARB-19 | Shared reject codes for encoding traps | both decoders | locally cross-checked |\n| ARB-20 | Parent mutation changes `Q`; sequence mutation does not | pure `evaluate` | locally cross-checked |\n| ARB-21 | One winner of a same-identity race; file reload returns the receipt | illustrative ledgers | locally tested |\n| ARB-22 | Different bodies move the tie digest; resistance stays `unproven` | pure `evaluate` | locally cross-checked |\n| ARB-23 | Permutations agree on transcript, `S`, `Q`, ranking, winner, rejections | both implementations | locally cross-checked |\n\n\"Locally cross-checked\" means the second computation lives in this repository and does not import `asx`. It is not an implementation written by another party. That external check is outstanding.\n\nThe pure cases are also in the corpus. The store cases are not represented as distributed traces. Their tests would pass on a single machine even if a real deployment double-committed.\n\n<!-- anchor-historical-missing -->\n\n`conformance/historical/STATUS.md` records the search for T01 and T13–T22 and for the earlier 1,024-case fuzz corpus. Those artifacts were not found. No historical run is claimed. The seeded fuzz in `tests/test_fuzz.py` is a new 1,024-draw check that the reference and the independent checker agree, including on random garbage transcripts. It is not the missing corpus.\n\n## Requirement index\n\nThe requirement statements live in the SCL proposal under `.scl/proposals/`. This table names the tests that exercise them. It is not a second copy of the requirements. `TRACEABILITY.md` is generated when a trusted reviewer commits the model. That commit has not happened.\n\n| Requirement | Exercises | Status in the model |\n| --- | --- | --- |\n| requirement-matching-semantic-references | reference equality and proposal commitment | partial |\n| requirement-verified-pre-state | ARB-10 | partial |\n| requirement-canonical-decision-bytes | ARB-19, ARB-23 | partial |\n| requirement-fail-closed-without-agreement | ARB-06, tie-collision | partial |\n| requirement-identical-validation-results | ARB-14, ARB-23, corpus | partial |\n| requirement-single-arbitration-mode | ARB-01 | partial |\n| requirement-fixed-round-context | ARB-11, ARB-20 | partial |\n| requirement-authenticated-admission | ARB-02 unauthenticated path | partial |\n| requirement-one-proposal-per-identity | ARB-21 | partial |\n| requirement-canonical-closed-set | ARB-18, ARB-19 | partial |\n| requirement-admission-sequence-excluded | ARB-20 | partial |\n| requirement-policy-derived-priority | ARB-04 | partial |\n| requirement-challenge-bound-tie-break | ARB-05, ARB-17 | partial |\n| requirement-halt-on-collision | ARB-06, equal-commitment halt | partial |\n| requirement-selection-not-commitment | ARB-09 | partial |\n| requirement-single-successor-commit | ARB-08 | partial |\n| requirement-recorded-losing-proposals | ARB-05 rejections | partial |\n| requirement-frozen-policy | ARB-11 | partial |\n| requirement-third-party-recomputation | ARB-14, ARB-23 | partial |\n| requirement-fairness-is-declared-policy | ARB-15 | partial |\n| requirement-no-grinding-resistance-claim | ARB-22 | partial |\n| requirement-extension-fail-closed | ARB-16 | partial |\n| requirement-durable-replay-detection | ARB-13, file replay reload | partial |\n| requirement-atomic-rejection | rejection leaves the effect hook uncalled | partial |\n| requirement-no-duplicate-effects | ARB-13 | partial |\n| requirement-restart-recovery | journal recovery test | partial |\n| requirement-deterministic-rejection-precedence | ARB-19 | partial |\n\nEvery row is partial. The reference behaviour has local tests. Distributed linearizability, production signatures, external exactly-once effects, and an outside implementation do not.\n"
+    },
+    {
+      "op": "add_question",
+      "question": {
+        "ID": "OQ-001",
+        "Question": "Does the derived challenge resist offline semantic grinding?",
+        "Context": "Q is a public function of the round, parent, policy digest, and closed-set digest. A proposer can try semantic bodies before admission.",
+        "Raised by": "asx-bootstrap",
+        "Date raised": "2026-11-24",
+        "Status": "open",
+        "Risk Level": "Critical",
+        "Owner": "gellsmore-svg",
+        "Blocks": "any statement that version 1 provides grinding resistance",
+        "Resolution": "unresolved",
+        "Evidence": "docs/security.md#anchor-grinding"
+      }
+    },
+    {
+      "op": "add_question",
+      "question": {
+        "ID": "OQ-002",
+        "Question": "What durable distributed sequencer commits admission exactly once?",
+        "Context": "The reference admission classes demonstrate one process or one file. They do not show distributed linearizability.",
+        "Raised by": "asx-bootstrap",
+        "Date raised": "2026-11-24",
+        "Status": "open",
+        "Risk Level": "High",
+        "Owner": "gellsmore-svg",
+        "Blocks": "a production claim of distributed admission linearizability",
+        "Resolution": "unresolved",
+        "Evidence": "docs/security.md#anchor-illustrative-stores"
+      }
+    },
+    {
+      "op": "add_question",
+      "question": {
+        "ID": "OQ-003",
+        "Question": "Will an implementation written outside this repository recompute the published vectors?",
+        "Context": "The second checker in conformance/independent does not import the reference package and was written in the same effort.",
+        "Raised by": "asx-bootstrap",
+        "Date raised": "2026-11-24",
+        "Status": "open",
+        "Risk Level": "High",
+        "Owner": "gellsmore-svg",
+        "Blocks": "the independent-verification status of the published vectors",
+        "Resolution": "unresolved",
+        "Evidence": "docs/conformance.md#anchor-arb-cases"
+      }
+    },
+    {
+      "op": "add_question",
+      "question": {
+        "ID": "OQ-004",
+        "Question": "Which production signature algorithm will authenticate admission and decisions?",
+        "Context": "Version 1 fixes the signed bytes and uses an illustrative HMAC helper. It does not choose a production signature.",
+        "Raised by": "asx-bootstrap",
+        "Date raised": "2026-11-24",
+        "Status": "open",
+        "Risk Level": "High",
+        "Owner": "gellsmore-svg",
+        "Blocks": "a production signature algorithm commitment",
+        "Resolution": "unresolved",
+        "Evidence": "docs/security.md#anchor-illustrative-stores"
+      }
+    },
+    {
+      "op": "add_question",
+      "question": {
+        "ID": "OQ-005",
+        "Question": "Where are the historical T01, T13-T22, and 1024-case fuzz artifacts?",
+        "Context": "A search on 2026-11-24 did not recover those bodies. The new seeded fuzz is not that corpus.",
+        "Raised by": "asx-bootstrap",
+        "Date raised": "2026-11-24",
+        "Status": "open",
+        "Risk Level": "Medium",
+        "Owner": "gellsmore-svg",
+        "Blocks": "any claim that the historical conformance cases were executed",
+        "Resolution": "unresolved",
+        "Evidence": "docs/conformance.md#anchor-historical-missing"
+      }
+    },
+    {
+      "op": "add_question",
+      "question": {
+        "ID": "OQ-006",
+        "Question": "How will an external effect be exactly once when the completion flag is missing?",
+        "Context": "Journal recovery can run an effect again when the effect happened and the done flag was not stored.",
+        "Raised by": "asx-bootstrap",
+        "Date raised": "2026-11-24",
+        "Status": "open",
+        "Risk Level": "High",
+        "Owner": "gellsmore-svg",
+        "Blocks": "an exactly-once external effect claim",
+        "Resolution": "unresolved",
+        "Evidence": "docs/security.md#anchor-illustrative-stores"
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "intent-semantic-integrity",
+        "type": "Intent",
+        "name": "Semantic integrity",
+        "description": "Independent agents must agree the declared semantic references and the authoritative starting state before a consequential transition, or they must stop.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-intent-semantic-integrity"
+          ]
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "intent-deterministic-arbitration",
+        "type": "Intent",
+        "name": "Deterministic arbitration",
+        "description": "Conflicting proposals must produce one governed decision that another implementation can recompute without using message arrival order.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-intent-deterministic-arbitration"
+          ]
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "intent-replay-safety",
+        "type": "Intent",
+        "name": "Replay safety",
+        "description": "Invalid, duplicated, stale, or unauthorised exchanges must not create an unintended state change or a second effect.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-intent-replay-safety"
+          ]
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-matching-references",
+        "type": "Outcome",
+        "name": "Matching semantic references",
+        "description": "Agents name the same published semantic reference before a transition.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-matching-references"
+          ],
+          "measure": "Byte equality of the canonical semantic-reference token."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-pre-state",
+        "type": "Outcome",
+        "name": "Verified pre-transition state",
+        "description": "The parent state is checked at the same boundary as the state change.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-pre-state"
+          ],
+          "measure": "A commit succeeds only when the stored parent hash equals the certified parent hash."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-joint-certification",
+        "type": "Outcome",
+        "name": "Joint decision certification",
+        "description": "A certified decision is the canonical decision bytes, not a local paraphrase.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-joint-certification"
+          ],
+          "measure": "Independent checks cover one canonical decision encoding."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-identical-validation-results",
+        "type": "Outcome",
+        "name": "Identical validation results",
+        "description": "Independent implementations report the same validation result for one record.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-identical-validation-results"
+          ],
+          "measure": "The same round record yields the same transcript, digest, challenge, ranking, winner, and rejections."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-fail-closed",
+        "type": "Outcome",
+        "name": "Fail closed without agreement",
+        "description": "Missing agreement produces no state change and no effect.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-fail-closed"
+          ],
+          "measure": "Disagreement leaves the parent hash and the effect log unchanged."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-ranking",
+        "type": "Outcome",
+        "name": "Deterministic ranking",
+        "description": "Eligibility, priority, and the challenge-bound tie-break are functions of the authenticated record.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-outcome-ranking"
+          ],
+          "measure": "One winner from descending policy priority, then the lowest unsigned tie digest."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-fairness",
+        "type": "Outcome",
+        "name": "Declared fairness",
+        "description": "Fairness is the published directive, not a hidden scheduler.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-outcome-fairness"
+          ],
+          "measure": "A max-wins cap changes ranking only when the pinned policy declares it."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-recorded-rejection",
+        "type": "Outcome",
+        "name": "Recorded rejection of losers",
+        "description": "Losing proposals are recorded and are not silently dropped or rebased.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-outcome-recorded-rejection"
+          ],
+          "measure": "Every eligible identity other than the winner has an explicit rejection code."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-recomputation",
+        "type": "Outcome",
+        "name": "Third-party recomputation",
+        "description": "The decision can be checked without trusting the selector's private choice.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-outcome-recomputation"
+          ],
+          "measure": "A third party recomputes the same winner from the authenticated record."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-one-successor",
+        "type": "Outcome",
+        "name": "One successor per parent",
+        "description": "Selection is not commitment. The successor commits only against the expected parent.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-outcome-one-successor"
+          ],
+          "measure": "At most one committed successor is accepted for a parent hash."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-replay-detection",
+        "type": "Outcome",
+        "name": "Durable replay detection",
+        "description": "A stored key is recognised after the process that wrote it has stopped.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-replay-detection"
+          ],
+          "measure": "A repeated replay key returns the original receipt."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-atomic-rejection",
+        "type": "Outcome",
+        "name": "Atomic rejection",
+        "description": "Rejection is observable and does not leave a partial effect.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-atomic-rejection"
+          ],
+          "measure": "A halt returns one rejection code and does not change state."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-no-duplicate",
+        "type": "Outcome",
+        "name": "No duplicate committed effect",
+        "description": "Retries of a committed transition do not create a second effect.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-no-duplicate"
+          ],
+          "measure": "A committed replay key does not run its effect a second time."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-recovery",
+        "type": "Outcome",
+        "name": "Recovery after interruption",
+        "description": "Interruption does not authorise a second successor.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-recovery"
+          ],
+          "measure": "A restarted journal resumes the stored successor without inventing another."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "outcome-consistent-failure",
+        "type": "Outcome",
+        "name": "Consistent failure behaviour",
+        "description": "Implementations share one precedence list for rejection codes.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-outcome-consistent-failure"
+          ],
+          "measure": "The same malformed input yields the same rejection code."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "model-semantic-agreement",
+        "type": "Model",
+        "name": "Semantic agreement",
+        "description": "The proposing agent offers a semantic reference, a parent hash, and a successor hash. The peer checks those bytes against the semantic authority's publication. The verifier accepts the exchange only when the canonical decision bytes match.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-model-semantic-agreement"
+          ]
+        },
+        "interaction": [
+          "system-system"
+        ],
+        "steps": [
+          {
+            "name": "OfferReference",
+            "from": "system-proposing-agent",
+            "to": "system-peer-agent",
+            "message": "canonical semantic reference, parent hash, and successor hash",
+            "binds": [
+              "requirement-matching-semantic-references"
+            ]
+          },
+          {
+            "name": "ConfirmReference",
+            "from": "system-peer-agent",
+            "to": "system-semantic-authority",
+            "message": "check that the reference names the published bytes",
+            "binds": [
+              "requirement-verified-pre-state"
+            ]
+          },
+          {
+            "name": "CertifyJointDecision",
+            "from": "system-semantic-authority",
+            "to": "system-verifier",
+            "message": "canonical decision bytes for joint certification",
+            "binds": [
+              "requirement-canonical-decision-bytes"
+            ]
+          },
+          {
+            "name": "CompareValidation",
+            "from": "system-verifier",
+            "to": "system-proposing-agent",
+            "message": "identical validation result or a shared halting code",
+            "binds": [
+              "requirement-identical-validation-results"
+            ]
+          },
+          {
+            "name": "StopWithoutAgreement",
+            "from": "system-verifier",
+            "to": "system-peer-agent",
+            "message": "stop with no state change when agreement is absent",
+            "binds": [
+              "requirement-fail-closed-without-agreement"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "model-governed-arbitration",
+        "type": "Model",
+        "name": "Governed arbitration",
+        "description": "Proposal submission, authenticated admission, admission closure, canonical set construction, priority evaluation, tie-breaking, decision certification, authoritative commit, then audit and rejection handling. Arrival order is not an input. The logical process does not prescribe a database, a transport, or a production signature algorithm.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-model-arbitration"
+          ]
+        },
+        "interaction": [
+          "system-system"
+        ],
+        "steps": [
+          {
+            "name": "SubmitProposal",
+            "from": "system-proposing-agent",
+            "to": "system-admission-sequencer",
+            "message": "authenticated proposal submission",
+            "binds": [
+              "requirement-authenticated-admission"
+            ]
+          },
+          {
+            "name": "AdmitProposal",
+            "from": "system-admission-sequencer",
+            "to": "system-proposing-agent",
+            "message": "original admission receipt or duplicate rejection",
+            "binds": [
+              "requirement-one-proposal-per-identity"
+            ]
+          },
+          {
+            "name": "CloseAdmission",
+            "from": "system-admission-sequencer",
+            "to": "system-arbitration-authority",
+            "message": "closed admission set with audit sequence kept outside the ranking digest",
+            "binds": [
+              "requirement-fixed-round-context",
+              "requirement-single-arbitration-mode"
+            ]
+          },
+          {
+            "name": "BuildCanonicalSet",
+            "from": "system-arbitration-authority",
+            "to": "system-verifier",
+            "message": "binary transcript sorted by canonical identity bytes",
+            "binds": [
+              "requirement-canonical-closed-set",
+              "requirement-admission-sequence-excluded"
+            ]
+          },
+          {
+            "name": "EvaluatePriority",
+            "from": "system-policy-authority",
+            "to": "system-arbitration-authority",
+            "message": "pinned policy priority for each operation",
+            "binds": [
+              "requirement-policy-derived-priority",
+              "requirement-frozen-policy"
+            ]
+          },
+          {
+            "name": "BreakTies",
+            "from": "system-arbitration-authority",
+            "to": "system-verifier",
+            "message": "lowest unsigned challenge-bound tie digest, or a halt on collision",
+            "binds": [
+              "requirement-challenge-bound-tie-break",
+              "requirement-halt-on-collision",
+              "requirement-no-grinding-resistance-claim"
+            ]
+          },
+          {
+            "name": "CertifyDecision",
+            "from": "system-arbitration-authority",
+            "to": "system-verifier",
+            "message": "winner and explicit rejections for every other eligible identity",
+            "binds": [
+              "requirement-recorded-losing-proposals",
+              "requirement-third-party-recomputation",
+              "requirement-deterministic-rejection-precedence"
+            ]
+          },
+          {
+            "name": "CheckExtensions",
+            "from": "system-verifier",
+            "to": "system-arbitration-authority",
+            "message": "critical unknown extensions fail closed and do not change ranking",
+            "binds": [
+              "requirement-extension-fail-closed"
+            ]
+          },
+          {
+            "name": "CommitSuccessor",
+            "from": "system-commit-authority",
+            "to": "system-proposing-agent",
+            "message": "compare-and-swap of the selected successor against the expected parent",
+            "binds": [
+              "requirement-selection-not-commitment",
+              "requirement-single-successor-commit"
+            ]
+          },
+          {
+            "name": "RecordRejections",
+            "from": "system-arbitration-authority",
+            "to": "system-proposing-agent",
+            "message": "audit record of losing proposals without rebasing them",
+            "binds": [
+              "requirement-recorded-losing-proposals"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "model-replay-protected-exchange",
+        "type": "Model",
+        "name": "Replay-protected exchange",
+        "description": "The commit authority stores a replay key for each committed transition. A repeat returns the original receipt. A halt does not change state. Recovery resumes the stored journal and does not invent a second successor.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-model-replay"
+          ]
+        },
+        "interaction": [
+          "system-system"
+        ],
+        "steps": [
+          {
+            "name": "DetectReplay",
+            "from": "system-proposing-agent",
+            "to": "system-commit-authority",
+            "message": "replay key for the round, identity, commitment, and parent",
+            "binds": [
+              "requirement-durable-replay-detection",
+              "requirement-no-duplicate-effects"
+            ]
+          },
+          {
+            "name": "RejectAtomically",
+            "from": "system-commit-authority",
+            "to": "system-verifier",
+            "message": "one rejection code and no effect",
+            "binds": [
+              "requirement-atomic-rejection"
+            ]
+          },
+          {
+            "name": "RecoverJournal",
+            "from": "system-commit-authority",
+            "to": "system-verifier",
+            "message": "resume the stored successor after interruption",
+            "binds": [
+              "requirement-restart-recovery"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "model-policy-pinning",
+        "type": "Model",
+        "name": "Policy pinning",
+        "description": "A policy steward publishes one policy revision. The policy authority pins that revision's digest for a round. Changing the policy starts a new round. The steward does not rank proposals.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-model-policy-pinning"
+          ]
+        },
+        "interaction": [
+          "human-system"
+        ],
+        "steps": [
+          {
+            "name": "PublishPolicy",
+            "from": "actor-policy-steward",
+            "to": "system-policy-authority",
+            "message": "one policy revision, priority table, and fairness directive",
+            "binds": [
+              "requirement-fairness-is-declared-policy"
+            ]
+          },
+          {
+            "name": "PinRevision",
+            "from": "system-policy-authority",
+            "to": "actor-policy-steward",
+            "message": "digest pinned for the round",
+            "binds": [
+              "requirement-frozen-policy"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-matching-semantic-references",
+        "type": "Requirement",
+        "name": "Matching semantic references",
+        "description": "The implementation SHALL treat two semantic references as the same publication only when their canonical tokens are byte-equal.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-matching-references",
+            "conformance:model/iomr/sources/conformance.md#requirement-matching-semantic-references"
+          ],
+          "acceptance": "Given two tokens, reference equality is true only when the bytes are equal, and a mismatch produces no commit.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-verified-pre-state",
+        "type": "Requirement",
+        "name": "Verified pre-transition state",
+        "description": "A transition SHALL be committed only when the stored parent hash equals the parent hash in the certified decision.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-pre-state",
+            "conformance:model/iomr/sources/conformance.md#requirement-verified-pre-state"
+          ],
+          "acceptance": "A successor presented against any other parent is rejected as stale-parent and the stored parent is unchanged.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-canonical-decision-bytes",
+        "type": "Requirement",
+        "name": "Canonical decision bytes",
+        "description": "Joint certification SHALL cover one canonical decision encoding, and a JSON object SHALL NOT be accepted as that encoding.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-canonical-bytes",
+            "conformance:model/iomr/sources/conformance.md#requirement-canonical-decision-bytes"
+          ],
+          "acceptance": "A JSON object presented as the transcript yields malformed-transcript, and two verifiers accept only identical decision bytes.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-fail-closed-without-agreement",
+        "type": "Requirement",
+        "name": "Fail closed without agreement",
+        "description": "If the references, parent, certificate, or ranking do not agree, the implementation SHALL leave state and effects unchanged.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-fail-closed",
+            "conformance:model/iomr/sources/conformance.md#requirement-fail-closed-without-agreement"
+          ],
+          "acceptance": "Each of those disagreements returns a rejection and does not call the effect hook.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-identical-validation-results",
+        "type": "Requirement",
+        "name": "Identical validation results",
+        "description": "Two implementations given the same authenticated round record SHALL produce the same transcript, closed-set digest, challenge, ranking, winner, and rejection codes, or the same halting code.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-identical-validation",
+            "conformance:model/iomr/sources/conformance.md#requirement-identical-validation-results"
+          ],
+          "acceptance": "The published vector corpus and the in-repository checker agree on those fields. An implementation written outside this repository remains outstanding.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-single-arbitration-mode",
+        "type": "Requirement",
+        "name": "Single arbitration mode",
+        "description": "When no authoritative closure is available, the implementation SHALL return arbiter-unavailable and SHALL NOT select a winner by arrival order.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-single-mode",
+            "conformance:model/iomr/sources/conformance.md#requirement-single-arbitration-mode"
+          ],
+          "acceptance": "A missing closure does not commit, and no code path uses first-arrival as a fallback.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-fixed-round-context",
+        "type": "Requirement",
+        "name": "Fixed round context",
+        "description": "The round identifier, parent hash, pinned policy digest, and admission rules SHALL stay fixed for the round.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-fixed-context",
+            "conformance:model/iomr/sources/conformance.md#requirement-fixed-round-context"
+          ],
+          "acceptance": "A submission after closure is admission-closed, and a policy revision different from the pin is policy-stale.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-authenticated-admission",
+        "type": "Requirement",
+        "name": "Authenticated admission",
+        "description": "An eligible identity SHALL be accepted only with a proof over the submission binding, not from the identity string alone.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-admission",
+            "conformance:model/iomr/sources/conformance.md#requirement-authenticated-admission"
+          ],
+          "acceptance": "A submission without a valid proof is admission-unauthenticated and is not entered in the closed set.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-one-proposal-per-identity",
+        "type": "Requirement",
+        "name": "One proposal per identity",
+        "description": "Each governed identity SHALL have at most one eligible proposal in a round. The first committed admission is authoritative, an identical retry returns that receipt, and a distinct later submission is duplicate-submission.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-one-proposal",
+            "conformance:model/iomr/sources/conformance.md#requirement-one-proposal-per-identity"
+          ],
+          "acceptance": "Concurrent admissions of one identity yield one receipt, and a second distinct body is rejected.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-canonical-closed-set",
+        "type": "Requirement",
+        "name": "Canonical closed set",
+        "description": "The eligible set SHALL be encoded as one binary transcript and sorted by canonical identity bytes.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-transcript",
+            "conformance:model/iomr/sources/conformance.md#requirement-canonical-closed-set"
+          ],
+          "acceptance": "Permutations of the same entries produce identical transcript bytes, and a non-grammar identity is noncanonical-identity.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-admission-sequence-excluded",
+        "type": "Requirement",
+        "name": "Admission sequence excluded from ranking",
+        "description": "Admission sequence numbers SHALL remain in a separate audit record and SHALL NOT be inputs to the ranking digest.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-sequence-excluded",
+            "conformance:model/iomr/sources/conformance.md#requirement-admission-sequence-excluded"
+          ],
+          "acceptance": "Changing only the admission sequence leaves the closed-set digest and the winner unchanged.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-policy-derived-priority",
+        "type": "Requirement",
+        "name": "Policy-derived priority",
+        "description": "Effective priority SHALL come from the pinned policy. A proposer assertion that differs from that value SHALL halt the round as priority-untrusted.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-priority",
+            "conformance:model/iomr/sources/conformance.md#requirement-policy-derived-priority"
+          ],
+          "acceptance": "The higher policy priority wins when assertions are omitted, and an unequal asserted_priority yields priority-untrusted.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-challenge-bound-tie-break",
+        "type": "Requirement",
+        "name": "Challenge-bound tie-break",
+        "description": "Equal policy priorities SHALL be ranked by the lowest unsigned challenge-bound tie digest specified for version 1.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-tie",
+            "conformance:model/iomr/sources/conformance.md#requirement-challenge-bound-tie-break"
+          ],
+          "acceptance": "Equal-priority entries select the minimum tie digest, and the order of the input list does not change the winner.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-halt-on-collision",
+        "type": "Requirement",
+        "name": "Halt on collision",
+        "description": "The round SHALL halt with tie-collision when the winning priority class contains more than one minimum tie digest, and SHALL halt on commitment-mismatch or commitment-collision, without falling back to arrival order.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-collision",
+            "conformance:model/iomr/sources/conformance.md#requirement-halt-on-collision"
+          ],
+          "acceptance": "Two equal commitments at the same priority produce tie-collision and no winner.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-selection-not-commitment",
+        "type": "Requirement",
+        "name": "Selection is not commitment",
+        "description": "Selecting a winner SHALL NOT change authoritative state.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-selection",
+            "conformance:model/iomr/sources/conformance.md#requirement-selection-not-commitment"
+          ],
+          "acceptance": "Evaluation without a subsequent compare-and-swap leaves the parent and the effect hook unchanged.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-single-successor-commit",
+        "type": "Requirement",
+        "name": "Single successor commit",
+        "description": "The selected successor SHALL be committed only by compare-and-swap, or an equivalent serialisable check, against the expected parent. A competing commit SHALL be rejected, and losing proposals SHALL NOT be rebased.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-commit",
+            "conformance:model/iomr/sources/conformance.md#requirement-single-successor-commit"
+          ],
+          "acceptance": "Two racing commits from one parent allow one successor, and the loser is stale-parent.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-recorded-losing-proposals",
+        "type": "Requirement",
+        "name": "Recorded losing proposals",
+        "description": "A successful decision SHALL record an explicit rejection for every eligible identity other than the winner.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-rejection",
+            "conformance:model/iomr/sources/conformance.md#requirement-recorded-losing-proposals"
+          ],
+          "acceptance": "The rejection list contains lower-priority or higher-tie-digest for each loser and does not omit one.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-frozen-policy",
+        "type": "Requirement",
+        "name": "Frozen policy",
+        "description": "The policy digest pinned at admission SHALL be the only policy input to the round.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-frozen-policy",
+            "conformance:model/iomr/sources/conformance.md#requirement-frozen-policy"
+          ],
+          "acceptance": "A mismatched declared digest is policy-stale, and a later policy revision does not rewrite the pinned round.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-third-party-recomputation",
+        "type": "Requirement",
+        "name": "Third-party recomputation",
+        "description": "A third party with the round record, the pinned policy, and the semantic bytes SHALL be able to recompute the transcript, closed-set digest, challenge, ranking, winner, and rejection codes.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-recompute",
+            "conformance:model/iomr/sources/conformance.md#requirement-third-party-recomputation"
+          ],
+          "acceptance": "The in-repository checker recomputes those fields. An implementation developed outside this repository is not yet shown.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-fairness-is-declared-policy",
+        "type": "Requirement",
+        "name": "Fairness is declared policy",
+        "description": "Fairness SHALL be empty or exactly the declared max-wins directive. Unknown fairness text SHALL be policy-invalid, and prior wins SHALL NOT change ranking unless that directive is pinned.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-fairness",
+            "conformance:model/iomr/sources/conformance.md#requirement-fairness-is-declared-policy"
+          ],
+          "acceptance": "max-wins with a count at the cap is fairness-violation, and omitted history under max-wins is policy-invalid.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-no-grinding-resistance-claim",
+        "type": "Requirement",
+        "name": "No grinding-resistance claim",
+        "description": "Documentation and results SHALL describe the derived challenge as reproducible and SHALL NOT describe it as independent randomness or grinding resistance.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "security:model/iomr/sources/security.md#anchor-grinding",
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-grinding",
+            "conformance:model/iomr/sources/conformance.md#requirement-no-grinding-resistance-claim"
+          ],
+          "acceptance": "The published grinding-resistance field remains unproven, and changing a semantic body changes the tie digest.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-extension-fail-closed",
+        "type": "Requirement",
+        "name": "Extension fail closed",
+        "description": "A critical extension with no enabled handler SHALL halt the round. An unknown noncritical extension SHALL NOT change the transcript, the challenge, or the winner.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "arbitration:model/iomr/sources/arbitration.md#anchor-rn-extensions",
+            "conformance:model/iomr/sources/conformance.md#requirement-extension-fail-closed"
+          ],
+          "acceptance": "A critical unknown extension is extension-critical-unknown, and a noncritical extension leaves the closed-set digest unchanged.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-durable-replay-detection",
+        "type": "Requirement",
+        "name": "Durable replay detection",
+        "description": "A replay key that is already stored SHALL return the original receipt and SHALL NOT apply the effect again.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-replay",
+            "conformance:model/iomr/sources/conformance.md#requirement-durable-replay-detection"
+          ],
+          "acceptance": "A second presentation of the same key returns replay-receipt, including after the illustrative file log is reloaded.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-atomic-rejection",
+        "type": "Requirement",
+        "name": "Atomic rejection",
+        "description": "A halting rejection SHALL be observable as one rejection code and SHALL NOT change state or call the effect hook.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-atomic",
+            "conformance:model/iomr/sources/conformance.md#requirement-atomic-rejection"
+          ],
+          "acceptance": "Rejection paths leave the commit counter and the effect hook unchanged.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-no-duplicate-effects",
+        "type": "Requirement",
+        "name": "No duplicate effects",
+        "description": "A committed transition SHALL NOT produce a second committed effect when the same replay key is presented again.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-no-duplicate",
+            "conformance:model/iomr/sources/conformance.md#requirement-no-duplicate-effects"
+          ],
+          "acceptance": "The effect hook runs once for a successful commit and does not run on the retry.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-restart-recovery",
+        "type": "Requirement",
+        "name": "Restart recovery",
+        "description": "Recovery after interruption SHALL continue from the stored journal without inventing a second successor, and SHALL NOT claim exactly-once external effects when the completion flag was not stored.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-recovery",
+            "conformance:model/iomr/sources/conformance.md#requirement-restart-recovery"
+          ],
+          "acceptance": "Recovery after the completion flag does not call the hook again. Recovery when the hook ran and the flag was not stored may call it again, and that limit is recorded.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "requirement-deterministic-rejection-precedence",
+        "type": "Requirement",
+        "name": "Deterministic rejection precedence",
+        "description": "When several checks fail, the implementation SHALL report the earliest code in the published precedence list.",
+        "status": "partial",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval.",
+          "evidence": [
+            "protocol:model/iomr/sources/protocol.md#anchor-rn-precedence",
+            "conformance:model/iomr/sources/conformance.md#requirement-deterministic-rejection-precedence"
+          ],
+          "acceptance": "The reference decoder and the independent decoder return the same code for each encoding trap in the conformance cases.",
+          "gaps": "Reference behaviour is locally tested in one process. Distributed linearizability, production signatures, and an implementation developed outside this repository are not shown."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-proposing-agent",
+        "type": "System",
+        "name": "Proposing agent",
+        "description": "An agent that submits one semantic proposal for a round.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-peer-agent",
+        "type": "System",
+        "name": "Peer agent",
+        "description": "An agent that checks the same semantic reference and the same decision bytes.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-semantic-authority",
+        "type": "System",
+        "name": "Semantic authority",
+        "description": "The publisher of the bytes named by a semantic reference. ASX does not interpret those bytes.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-policy-authority",
+        "type": "System",
+        "name": "Policy authority",
+        "description": "The publisher of the pinned priority table and fairness directive.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-admission-sequencer",
+        "type": "System",
+        "name": "Admission sequencer",
+        "description": "The durable sequencer that commits at most one admission per governed identity.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-arbitration-authority",
+        "type": "System",
+        "name": "Arbitration authority",
+        "description": "The role that closes admission and certifies the ranking from the authenticated record.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-commit-authority",
+        "type": "System",
+        "name": "Commit authority",
+        "description": "The role that compare-and-swaps the selected successor against the expected parent.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "system-verifier",
+        "type": "System",
+        "name": "Verifier",
+        "description": "An observer that recomputes the decision from the authenticated record.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "actor-policy-steward",
+        "type": "Actor",
+        "name": "Policy steward",
+        "description": "A person who publishes one policy revision and does not rank a round by hand.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "policy-admission-v1",
+        "type": "Policy",
+        "name": "Admission v1",
+        "description": "Each authenticated identity has one eligible proposal. The first committed admission is kept, an identical retry returns the original receipt, and a distinct later submission is rejected. The admission sequence is audit evidence and is not a ranking input.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "policy-no-hidden-scheduler",
+        "type": "Policy",
+        "name": "No hidden scheduler",
+        "description": "Agent clocks, transport arrival, and admission sequence do not choose the winner. Fairness is only the directive published in the pinned policy.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "policy-fail-closed",
+        "type": "Policy",
+        "name": "Fail closed",
+        "description": "Missing agreement, missing closure, a malformed certificate, or a disputed parent produces no state change. Safety is preferred when progress cannot be guaranteed.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "decision-arbitration-selection",
+        "type": "Decision",
+        "name": "Arbitration selection",
+        "description": "The unique winner of the pinned ranking, or a halt when the ranking is ambiguous.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "decision-authoritative-commit",
+        "type": "Decision",
+        "name": "Authoritative commit",
+        "description": "Compare-and-swap of the selected successor against the expected parent. Selection alone is not a commit.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_record",
+      "record": {
+        "id": "project-asx",
+        "type": "Project",
+        "name": "Agent Semantic Exchange",
+        "description": "ASX is an independently implementable protocol for verifiable semantic commitments and governed state transitions between agents.",
+        "status": "planned",
+        "metadata": {
+          "basis": "inferred",
+          "inference": "Inferred while consolidating the ASX IOMR v0.2 candidate from SCL issue 22, including RN-05.13, into an ASX-owned model. This is an AI inference, not a human approval."
+        }
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-matching-references-delivers-intent-semantic-integrity",
+        "type": "delivers",
+        "from": "outcome-matching-references",
+        "to": "intent-semantic-integrity",
+        "rationale": "outcome-matching-references is the observable result that fulfils intent-semantic-integrity."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-pre-state-delivers-intent-semantic-integrity",
+        "type": "delivers",
+        "from": "outcome-pre-state",
+        "to": "intent-semantic-integrity",
+        "rationale": "outcome-pre-state is the observable result that fulfils intent-semantic-integrity."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-joint-certification-delivers-intent-semantic-integrity",
+        "type": "delivers",
+        "from": "outcome-joint-certification",
+        "to": "intent-semantic-integrity",
+        "rationale": "outcome-joint-certification is the observable result that fulfils intent-semantic-integrity."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-identical-validation-results-delivers-intent-semantic-integrity",
+        "type": "delivers",
+        "from": "outcome-identical-validation-results",
+        "to": "intent-semantic-integrity",
+        "rationale": "outcome-identical-validation-results is the observable result that fulfils intent-semantic-integrity."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-fail-closed-delivers-intent-semantic-integrity",
+        "type": "delivers",
+        "from": "outcome-fail-closed",
+        "to": "intent-semantic-integrity",
+        "rationale": "outcome-fail-closed is the observable result that fulfils intent-semantic-integrity."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-ranking-delivers-intent-deterministic-arbitration",
+        "type": "delivers",
+        "from": "outcome-ranking",
+        "to": "intent-deterministic-arbitration",
+        "rationale": "outcome-ranking is the observable result that fulfils intent-deterministic-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-fairness-delivers-intent-deterministic-arbitration",
+        "type": "delivers",
+        "from": "outcome-fairness",
+        "to": "intent-deterministic-arbitration",
+        "rationale": "outcome-fairness is the observable result that fulfils intent-deterministic-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-recorded-rejection-delivers-intent-deterministic-arbitration",
+        "type": "delivers",
+        "from": "outcome-recorded-rejection",
+        "to": "intent-deterministic-arbitration",
+        "rationale": "outcome-recorded-rejection is the observable result that fulfils intent-deterministic-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-recomputation-delivers-intent-deterministic-arbitration",
+        "type": "delivers",
+        "from": "outcome-recomputation",
+        "to": "intent-deterministic-arbitration",
+        "rationale": "outcome-recomputation is the observable result that fulfils intent-deterministic-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-one-successor-delivers-intent-deterministic-arbitration",
+        "type": "delivers",
+        "from": "outcome-one-successor",
+        "to": "intent-deterministic-arbitration",
+        "rationale": "outcome-one-successor is the observable result that fulfils intent-deterministic-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-replay-detection-delivers-intent-replay-safety",
+        "type": "delivers",
+        "from": "outcome-replay-detection",
+        "to": "intent-replay-safety",
+        "rationale": "outcome-replay-detection is the observable result that fulfils intent-replay-safety."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-atomic-rejection-delivers-intent-replay-safety",
+        "type": "delivers",
+        "from": "outcome-atomic-rejection",
+        "to": "intent-replay-safety",
+        "rationale": "outcome-atomic-rejection is the observable result that fulfils intent-replay-safety."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-no-duplicate-delivers-intent-replay-safety",
+        "type": "delivers",
+        "from": "outcome-no-duplicate",
+        "to": "intent-replay-safety",
+        "rationale": "outcome-no-duplicate is the observable result that fulfils intent-replay-safety."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-recovery-delivers-intent-replay-safety",
+        "type": "delivers",
+        "from": "outcome-recovery",
+        "to": "intent-replay-safety",
+        "rationale": "outcome-recovery is the observable result that fulfils intent-replay-safety."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "outcome-consistent-failure-delivers-intent-replay-safety",
+        "type": "delivers",
+        "from": "outcome-consistent-failure",
+        "to": "intent-replay-safety",
+        "rationale": "outcome-consistent-failure is the observable result that fulfils intent-replay-safety."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-serves-outcome-matching-references",
+        "type": "serves",
+        "from": "model-semantic-agreement",
+        "to": "outcome-matching-references",
+        "rationale": "model-semantic-agreement is the interaction that produces outcome-matching-references."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-serves-outcome-pre-state",
+        "type": "serves",
+        "from": "model-semantic-agreement",
+        "to": "outcome-pre-state",
+        "rationale": "model-semantic-agreement is the interaction that produces outcome-pre-state."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-serves-outcome-joint-certification",
+        "type": "serves",
+        "from": "model-semantic-agreement",
+        "to": "outcome-joint-certification",
+        "rationale": "model-semantic-agreement is the interaction that produces outcome-joint-certification."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-serves-outcome-identical-validation-results",
+        "type": "serves",
+        "from": "model-semantic-agreement",
+        "to": "outcome-identical-validation-results",
+        "rationale": "model-semantic-agreement is the interaction that produces outcome-identical-validation-results."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-serves-outcome-fail-closed",
+        "type": "serves",
+        "from": "model-semantic-agreement",
+        "to": "outcome-fail-closed",
+        "rationale": "model-semantic-agreement is the interaction that produces outcome-fail-closed."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-serves-outcome-ranking",
+        "type": "serves",
+        "from": "model-governed-arbitration",
+        "to": "outcome-ranking",
+        "rationale": "model-governed-arbitration is the interaction that produces outcome-ranking."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-serves-outcome-fairness",
+        "type": "serves",
+        "from": "model-governed-arbitration",
+        "to": "outcome-fairness",
+        "rationale": "model-governed-arbitration is the interaction that produces outcome-fairness."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-policy-pinning-serves-outcome-fairness",
+        "type": "serves",
+        "from": "model-policy-pinning",
+        "to": "outcome-fairness",
+        "rationale": "model-policy-pinning is the interaction that produces outcome-fairness."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-serves-outcome-recorded-rejection",
+        "type": "serves",
+        "from": "model-governed-arbitration",
+        "to": "outcome-recorded-rejection",
+        "rationale": "model-governed-arbitration is the interaction that produces outcome-recorded-rejection."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-serves-outcome-recomputation",
+        "type": "serves",
+        "from": "model-governed-arbitration",
+        "to": "outcome-recomputation",
+        "rationale": "model-governed-arbitration is the interaction that produces outcome-recomputation."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-serves-outcome-one-successor",
+        "type": "serves",
+        "from": "model-governed-arbitration",
+        "to": "outcome-one-successor",
+        "rationale": "model-governed-arbitration is the interaction that produces outcome-one-successor."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-serves-outcome-replay-detection",
+        "type": "serves",
+        "from": "model-replay-protected-exchange",
+        "to": "outcome-replay-detection",
+        "rationale": "model-replay-protected-exchange is the interaction that produces outcome-replay-detection."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-serves-outcome-atomic-rejection",
+        "type": "serves",
+        "from": "model-replay-protected-exchange",
+        "to": "outcome-atomic-rejection",
+        "rationale": "model-replay-protected-exchange is the interaction that produces outcome-atomic-rejection."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-serves-outcome-no-duplicate",
+        "type": "serves",
+        "from": "model-replay-protected-exchange",
+        "to": "outcome-no-duplicate",
+        "rationale": "model-replay-protected-exchange is the interaction that produces outcome-no-duplicate."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-serves-outcome-recovery",
+        "type": "serves",
+        "from": "model-replay-protected-exchange",
+        "to": "outcome-recovery",
+        "rationale": "model-replay-protected-exchange is the interaction that produces outcome-recovery."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-serves-outcome-consistent-failure",
+        "type": "serves",
+        "from": "model-replay-protected-exchange",
+        "to": "outcome-consistent-failure",
+        "rationale": "model-replay-protected-exchange is the interaction that produces outcome-consistent-failure."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-matching-semantic-references-specifies-model-semantic-agreement",
+        "type": "specifies",
+        "from": "requirement-matching-semantic-references",
+        "to": "model-semantic-agreement",
+        "rationale": "requirement-matching-semantic-references constrains the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-verified-pre-state-specifies-model-semantic-agreement",
+        "type": "specifies",
+        "from": "requirement-verified-pre-state",
+        "to": "model-semantic-agreement",
+        "rationale": "requirement-verified-pre-state constrains the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-canonical-decision-bytes-specifies-model-semantic-agreement",
+        "type": "specifies",
+        "from": "requirement-canonical-decision-bytes",
+        "to": "model-semantic-agreement",
+        "rationale": "requirement-canonical-decision-bytes constrains the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-fail-closed-without-agreement-specifies-model-semantic-agreement",
+        "type": "specifies",
+        "from": "requirement-fail-closed-without-agreement",
+        "to": "model-semantic-agreement",
+        "rationale": "requirement-fail-closed-without-agreement constrains the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-identical-validation-results-specifies-model-semantic-agreement",
+        "type": "specifies",
+        "from": "requirement-identical-validation-results",
+        "to": "model-semantic-agreement",
+        "rationale": "requirement-identical-validation-results constrains the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-single-arbitration-mode-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-single-arbitration-mode",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-single-arbitration-mode constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-fixed-round-context-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-fixed-round-context",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-fixed-round-context constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-authenticated-admission-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-authenticated-admission",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-authenticated-admission constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-one-proposal-per-identity-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-one-proposal-per-identity",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-one-proposal-per-identity constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-canonical-closed-set-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-canonical-closed-set",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-canonical-closed-set constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-admission-sequence-excluded-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-admission-sequence-excluded",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-admission-sequence-excluded constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-policy-derived-priority-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-policy-derived-priority",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-policy-derived-priority constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-challenge-bound-tie-break-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-challenge-bound-tie-break",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-challenge-bound-tie-break constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-halt-on-collision-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-halt-on-collision",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-halt-on-collision constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-selection-not-commitment-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-selection-not-commitment",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-selection-not-commitment constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-single-successor-commit-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-single-successor-commit",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-single-successor-commit constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-recorded-losing-proposals-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-recorded-losing-proposals",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-recorded-losing-proposals constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-frozen-policy-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-frozen-policy",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-frozen-policy constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-third-party-recomputation-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-third-party-recomputation",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-third-party-recomputation constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-fairness-is-declared-policy-specifies-model-policy-pinning",
+        "type": "specifies",
+        "from": "requirement-fairness-is-declared-policy",
+        "to": "model-policy-pinning",
+        "rationale": "requirement-fairness-is-declared-policy constrains the interaction recorded by model-policy-pinning."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-no-grinding-resistance-claim-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-no-grinding-resistance-claim",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-no-grinding-resistance-claim constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-extension-fail-closed-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-extension-fail-closed",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-extension-fail-closed constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-durable-replay-detection-specifies-model-replay-protected-exchange",
+        "type": "specifies",
+        "from": "requirement-durable-replay-detection",
+        "to": "model-replay-protected-exchange",
+        "rationale": "requirement-durable-replay-detection constrains the interaction recorded by model-replay-protected-exchange."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-atomic-rejection-specifies-model-replay-protected-exchange",
+        "type": "specifies",
+        "from": "requirement-atomic-rejection",
+        "to": "model-replay-protected-exchange",
+        "rationale": "requirement-atomic-rejection constrains the interaction recorded by model-replay-protected-exchange."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-no-duplicate-effects-specifies-model-replay-protected-exchange",
+        "type": "specifies",
+        "from": "requirement-no-duplicate-effects",
+        "to": "model-replay-protected-exchange",
+        "rationale": "requirement-no-duplicate-effects constrains the interaction recorded by model-replay-protected-exchange."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-restart-recovery-specifies-model-replay-protected-exchange",
+        "type": "specifies",
+        "from": "requirement-restart-recovery",
+        "to": "model-replay-protected-exchange",
+        "rationale": "requirement-restart-recovery constrains the interaction recorded by model-replay-protected-exchange."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "requirement-deterministic-rejection-precedence-specifies-model-governed-arbitration",
+        "type": "specifies",
+        "from": "requirement-deterministic-rejection-precedence",
+        "to": "model-governed-arbitration",
+        "rationale": "requirement-deterministic-rejection-precedence constrains the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-involves-system-proposing-agent",
+        "type": "involves",
+        "from": "model-semantic-agreement",
+        "to": "system-proposing-agent",
+        "rationale": "system-proposing-agent takes part in the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-involves-system-peer-agent",
+        "type": "involves",
+        "from": "model-semantic-agreement",
+        "to": "system-peer-agent",
+        "rationale": "system-peer-agent takes part in the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-involves-system-semantic-authority",
+        "type": "involves",
+        "from": "model-semantic-agreement",
+        "to": "system-semantic-authority",
+        "rationale": "system-semantic-authority takes part in the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-semantic-agreement-involves-system-verifier",
+        "type": "involves",
+        "from": "model-semantic-agreement",
+        "to": "system-verifier",
+        "rationale": "system-verifier takes part in the interaction recorded by model-semantic-agreement."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-involves-system-proposing-agent",
+        "type": "involves",
+        "from": "model-governed-arbitration",
+        "to": "system-proposing-agent",
+        "rationale": "system-proposing-agent takes part in the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-involves-system-admission-sequencer",
+        "type": "involves",
+        "from": "model-governed-arbitration",
+        "to": "system-admission-sequencer",
+        "rationale": "system-admission-sequencer takes part in the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-involves-system-policy-authority",
+        "type": "involves",
+        "from": "model-governed-arbitration",
+        "to": "system-policy-authority",
+        "rationale": "system-policy-authority takes part in the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-involves-system-arbitration-authority",
+        "type": "involves",
+        "from": "model-governed-arbitration",
+        "to": "system-arbitration-authority",
+        "rationale": "system-arbitration-authority takes part in the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-involves-system-commit-authority",
+        "type": "involves",
+        "from": "model-governed-arbitration",
+        "to": "system-commit-authority",
+        "rationale": "system-commit-authority takes part in the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-governed-arbitration-involves-system-verifier",
+        "type": "involves",
+        "from": "model-governed-arbitration",
+        "to": "system-verifier",
+        "rationale": "system-verifier takes part in the interaction recorded by model-governed-arbitration."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-involves-system-proposing-agent",
+        "type": "involves",
+        "from": "model-replay-protected-exchange",
+        "to": "system-proposing-agent",
+        "rationale": "system-proposing-agent takes part in the interaction recorded by model-replay-protected-exchange."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-involves-system-commit-authority",
+        "type": "involves",
+        "from": "model-replay-protected-exchange",
+        "to": "system-commit-authority",
+        "rationale": "system-commit-authority takes part in the interaction recorded by model-replay-protected-exchange."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-replay-protected-exchange-involves-system-verifier",
+        "type": "involves",
+        "from": "model-replay-protected-exchange",
+        "to": "system-verifier",
+        "rationale": "system-verifier takes part in the interaction recorded by model-replay-protected-exchange."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-policy-pinning-involves-actor-policy-steward",
+        "type": "involves",
+        "from": "model-policy-pinning",
+        "to": "actor-policy-steward",
+        "rationale": "actor-policy-steward takes part in the interaction recorded by model-policy-pinning."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "model-policy-pinning-involves-system-policy-authority",
+        "type": "involves",
+        "from": "model-policy-pinning",
+        "to": "system-policy-authority",
+        "rationale": "system-policy-authority takes part in the interaction recorded by model-policy-pinning."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "policy-admission-v1-constrains-model-governed-arbitration",
+        "type": "constrains",
+        "from": "policy-admission-v1",
+        "to": "model-governed-arbitration",
+        "rationale": "policy-admission-v1 constrains model-governed-arbitration for the life of a round."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "policy-no-hidden-scheduler-constrains-model-governed-arbitration",
+        "type": "constrains",
+        "from": "policy-no-hidden-scheduler",
+        "to": "model-governed-arbitration",
+        "rationale": "policy-no-hidden-scheduler constrains model-governed-arbitration for the life of a round."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "policy-fail-closed-constrains-model-semantic-agreement",
+        "type": "constrains",
+        "from": "policy-fail-closed",
+        "to": "model-semantic-agreement",
+        "rationale": "policy-fail-closed constrains model-semantic-agreement for the life of a round."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "policy-fail-closed-constrains-model-governed-arbitration",
+        "type": "constrains",
+        "from": "policy-fail-closed",
+        "to": "model-governed-arbitration",
+        "rationale": "policy-fail-closed constrains model-governed-arbitration for the life of a round."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "policy-fail-closed-constrains-model-replay-protected-exchange",
+        "type": "constrains",
+        "from": "policy-fail-closed",
+        "to": "model-replay-protected-exchange",
+        "rationale": "policy-fail-closed constrains model-replay-protected-exchange for the life of a round."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "decision-arbitration-selection-constrains-model-governed-arbitration",
+        "type": "constrains",
+        "from": "decision-arbitration-selection",
+        "to": "model-governed-arbitration",
+        "rationale": "decision-arbitration-selection constrains model-governed-arbitration for the life of a round."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "decision-authoritative-commit-constrains-model-governed-arbitration",
+        "type": "constrains",
+        "from": "decision-authoritative-commit",
+        "to": "model-governed-arbitration",
+        "rationale": "decision-authoritative-commit constrains model-governed-arbitration for the life of a round."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "intent-semantic-integrity-belongs_to-project-asx",
+        "type": "belongs_to",
+        "from": "intent-semantic-integrity",
+        "to": "project-asx",
+        "rationale": "intent-semantic-integrity is an intent of the ASX project."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "intent-deterministic-arbitration-belongs_to-project-asx",
+        "type": "belongs_to",
+        "from": "intent-deterministic-arbitration",
+        "to": "project-asx",
+        "rationale": "intent-deterministic-arbitration is an intent of the ASX project."
+      }
+    },
+    {
+      "op": "add_relationship",
+      "relationship": {
+        "id": "intent-replay-safety-belongs_to-project-asx",
+        "type": "belongs_to",
+        "from": "intent-replay-safety",
+        "to": "project-asx",
+        "rationale": "intent-replay-safety is an intent of the ASX project."
+      }
+    }
+  ],
+  "base_revision": "ab78f862c360ed57057f5e3c37f9f1409095c1e0a08b313b2746f0c105cc9876",
+  "origin": "ai-inferred",
+  "author": "asx-bootstrap",
+  "state": "proposed",
+  "id": "proposal-a2a8113c8238daf399d1522a"
+}

@@ -1,0 +1,1860 @@
+{
+  "canonicalisation_version": 1,
+  "cases": [
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "e3f8b8dac922c7dd150a6e228eb66d46422ff0dc0b4a00dc666b77793160cef7",
+        "closed_set_digest_hex": "e11af84ed3ada902674ed93fe634fab9deafb5b114fbbf94376f40e5815db3de",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "9351003d7ca102cb30199485462bab14577b648d4d9a5523bdd086d0c085e88e",
+            "identity": "agent-b",
+            "priority": 9,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "01f5a9ea0981c68291a3900762371b7f9e0c56f2c3a46a7f1dfbbf631c74deb5"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "81f2ac2594ff5429538f6fa95fee40f7ce8012a52fe6ea53d3e6c912ea6c839b"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "lower-priority",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d629351003d7ca102cb30199485462bab14577b648d4d9a5523bdd086d0c085e88e0000000000000009",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "9351003d7ca102cb30199485462bab14577b648d4d9a5523bdd086d0c085e88e",
+          "identity": "agent-b",
+          "priority": 9,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "01f5a9ea0981c68291a3900762371b7f9e0c56f2c3a46a7f1dfbbf631c74deb5"
+        }
+      },
+      "id": "ARB-04-policy-priority",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "urgent",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "priority-untrusted",
+        "ok": false
+      },
+      "id": "ARB-04-asserted-priority",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "asserted_priority": 100,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "urgent",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 2,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "67da4a5abeafc79984975490e1920b916855563ad8e4277677ec2142773ed3d5",
+        "closed_set_digest_hex": "420a9d025bdfb006ade06caa341311e39f246585f28d1cb40770fc45ff8e2ed7",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "82e67090eecefe64e436205779cdc359704ee6608f8939d1676e7751dbad4786",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "38655f4ebda743c98120f87166b2a4149d80c112903268ea230bab8d3d702eb5"
+          },
+          {
+            "commitment_hex": "a3e83a5e0dd4d671878e5d936c6e59809a5dd71e70afed3294102553ff39c05f",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "4835127c0dbee037a78238dd52a0f9e65351812d2f1402ee8133ee7647fe0a37"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61a3e83a5e0dd4d671878e5d936c6e59809a5dd71e70afed3294102553ff39c05f0000000000000005000000076167656e742d6282e67090eecefe64e436205779cdc359704ee6608f8939d1676e7751dbad47860000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "82e67090eecefe64e436205779cdc359704ee6608f8939d1676e7751dbad4786",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "38655f4ebda743c98120f87166b2a4149d80c112903268ea230bab8d3d702eb5"
+        }
+      },
+      "id": "ARB-05-equal-priority",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "10",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          {
+            "admission_seq": 2,
+            "content_hex": "11",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 2,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "67da4a5abeafc79984975490e1920b916855563ad8e4277677ec2142773ed3d5",
+        "closed_set_digest_hex": "420a9d025bdfb006ade06caa341311e39f246585f28d1cb40770fc45ff8e2ed7",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "82e67090eecefe64e436205779cdc359704ee6608f8939d1676e7751dbad4786",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "38655f4ebda743c98120f87166b2a4149d80c112903268ea230bab8d3d702eb5"
+          },
+          {
+            "commitment_hex": "a3e83a5e0dd4d671878e5d936c6e59809a5dd71e70afed3294102553ff39c05f",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "4835127c0dbee037a78238dd52a0f9e65351812d2f1402ee8133ee7647fe0a37"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61a3e83a5e0dd4d671878e5d936c6e59809a5dd71e70afed3294102553ff39c05f0000000000000005000000076167656e742d6282e67090eecefe64e436205779cdc359704ee6608f8939d1676e7751dbad47860000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "82e67090eecefe64e436205779cdc359704ee6608f8939d1676e7751dbad4786",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "38655f4ebda743c98120f87166b2a4149d80c112903268ea230bab8d3d702eb5"
+        }
+      },
+      "id": "ARB-05-reversed-input",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 2,
+            "content_hex": "11",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "10",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "commitment-mismatch",
+        "ok": false
+      },
+      "id": "ARB-06-commitment-alias",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "claimed_commitment_hex": "abababababababababababababababababababababababababababababababab",
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 2,
+            "identity": "agent-b"
+          },
+          {
+            "admission_seq": 8,
+            "identity": "agent-c"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "631efe6f85ae98ed9080c18ac7324c6b1a050038b1493531aca5c5f438436ee8",
+        "closed_set_digest_hex": "00510cbddb01253e3768a616c19f4ae21b41f11d161c4449376ccc1719e230a3",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "ebd597026a399bc7f4af10babc4755540184b74b3e639ed268e4d90328daa7bd",
+            "identity": "agent-a",
+            "priority": 9,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "533645797c4c5ad22e66f58065679c069987d3dce012fb57f5779e2adb4401d2"
+          },
+          {
+            "commitment_hex": "8e019ec02328c1c34c8ce4e315a45567a691a6b48024a90326239f2853dc7e82",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "267755cf3777bf2fe9798f0d91d8b365241f6b22da898440ae668b7e2931e23c"
+          },
+          {
+            "commitment_hex": "73f2ae350a272cca88fbf25cea6b721105553a68f7eb467567f68530d9acf447",
+            "identity": "agent-c",
+            "priority": 5,
+            "successor_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "tie_hex": "ebfefa2617fe832b25d92c0f985430c0220ab8147dcf4f5a41dc5572a44df95e"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "lower-priority",
+            "identity": "agent-b"
+          },
+          {
+            "code": "lower-priority",
+            "identity": "agent-c"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000003000000076167656e742d61ebd597026a399bc7f4af10babc4755540184b74b3e639ed268e4d90328daa7bd0000000000000009000000076167656e742d628e019ec02328c1c34c8ce4e315a45567a691a6b48024a90326239f2853dc7e820000000000000005000000076167656e742d6373f2ae350a272cca88fbf25cea6b721105553a68f7eb467567f68530d9acf4470000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b",
+          "agent-c"
+        ],
+        "winner": {
+          "commitment_hex": "ebd597026a399bc7f4af10babc4755540184b74b3e639ed268e4d90328daa7bd",
+          "identity": "agent-a",
+          "priority": 9,
+          "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tie_hex": "533645797c4c5ad22e66f58065679c069987d3dce012fb57f5779e2adb4401d2"
+        }
+      },
+      "id": "ARB-07-mixed",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 2,
+            "content_hex": "22",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          {
+            "admission_seq": 8,
+            "content_hex": "33",
+            "identity": "agent-c",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "11",
+            "identity": "agent-a",
+            "operation": "urgent",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "5d8da22591538b889f7a691e4a135fb92417da0fb12f4cc8b140006e7a89e651",
+        "closed_set_digest_hex": "c0745568ffe339518c7f7a1cce134a027bb2294e2ba94d624bd60a8d65ccd1f9",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "acc2757cd00f5662af2a2991d0571ee5629563c3cd49c182c2b4cb664617a06c",
+        "ranking": [
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 100,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "714e591ede61fb153a1c47b679998095316a8e512b568451952da9c8b250bb04"
+          },
+          {
+            "commitment_hex": "9351003d7ca102cb30199485462bab14577b648d4d9a5523bdd086d0c085e88e",
+            "identity": "agent-b",
+            "priority": 1,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "37297ceb4ba51fd6999858eda4cd85b32a9e4750b877737822a67e7ef4ea054d"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "lower-priority",
+            "identity": "agent-b"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000064000000076167656e742d629351003d7ca102cb30199485462bab14577b648d4d9a5523bdd086d0c085e88e0000000000000001",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+          "identity": "agent-a",
+          "priority": 100,
+          "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tie_hex": "714e591ede61fb153a1c47b679998095316a8e512b568451952da9c8b250bb04"
+        }
+      },
+      "id": "ARB-11-revised-policy",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "urgent",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-2",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 100
+            },
+            {
+              "operation": "urgent",
+              "priority": 1
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "77f256488c4edf1ee2ca034689604ed0c05f2631828eab59357626602f0e4ce3",
+        "closed_set_digest_hex": "968d1012208d87d459472a459878885f73203aa4b9342460f61c514a717423fa",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "a46c41c7243900c1b07ab0bc3c8797314b2bb0db1914f86c16f389135b9514bc",
+            "identity": "agent-a",
+            "priority": 9,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "327de3d2f32154c5e977083da13e1e57cfacd3dbfb502a72267a688103a240eb"
+          },
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "47f20c2590812c509e56e2696b020544e40821281a963d61efc2ba5cd9b320c9"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "lower-priority",
+            "identity": "agent-b"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61a46c41c7243900c1b07ab0bc3c8797314b2bb0db1914f86c16f389135b9514bc0000000000000009000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "a46c41c7243900c1b07ab0bc3c8797314b2bb0db1914f86c16f389135b9514bc",
+          "identity": "agent-a",
+          "priority": 9,
+          "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tie_hex": "327de3d2f32154c5e977083da13e1e57cfacd3dbfb502a72267a688103a240eb"
+        }
+      },
+      "id": "ARB-15-no-implicit-cap",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "urgent",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "prior_wins": {
+          "agent-a": 50
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "fairness-violation",
+        "ok": false
+      },
+      "id": "ARB-15-declared-cap",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "urgent",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "max-wins:1",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "prior_wins": {
+          "agent-a": 1
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "75c4b434de15c1d8eba78601405dfa6634424cd7f63da32cec92824815bb1dff",
+        "closed_set_digest_hex": "4f1c935952de51e6d691100129a1d73269f606bb58921f970132cd95ff06caae",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "ae7b3894890b00a5e4f5da301c13efca555c44f30fd1972bfba376a35d7efc74"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+        }
+      },
+      "id": "ARB-16-noncritical-ignored",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "extensions": [
+          {
+            "critical": false,
+            "id": "org.gellsmore.deborah.process-ref",
+            "payload": "process:whatever",
+            "version": 1
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "extension-critical-unknown",
+        "ok": false
+      },
+      "id": "ARB-16-critical-unknown",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "extensions": [
+          {
+            "critical": true,
+            "id": "org.example.unknown",
+            "payload": "process:whatever",
+            "version": 1
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "75c4b434de15c1d8eba78601405dfa6634424cd7f63da32cec92824815bb1dff",
+        "closed_set_digest_hex": "4f1c935952de51e6d691100129a1d73269f606bb58921f970132cd95ff06caae",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "ae7b3894890b00a5e4f5da301c13efca555c44f30fd1972bfba376a35d7efc74"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+        }
+      },
+      "id": "ARB-17-nonce-a",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "transport_nonce": "n-1"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transport_nonce": "n-2"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "75c4b434de15c1d8eba78601405dfa6634424cd7f63da32cec92824815bb1dff",
+        "closed_set_digest_hex": "4f1c935952de51e6d691100129a1d73269f606bb58921f970132cd95ff06caae",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "ae7b3894890b00a5e4f5da301c13efca555c44f30fd1972bfba376a35d7efc74"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+        }
+      },
+      "id": "ARB-17-nonce-b",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "transport_nonce": "other"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "transport_nonce": "else"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-A"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-b"
+          },
+          {
+            "admission_seq": 1,
+            "identity": "agent-m"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "012ffb150128ebb37e407bfec836fde034436f67fc7ef17f9a37f42146a27362",
+        "closed_set_digest_hex": "c5053ed849be32c11881bcbf587650c8658d77277a945c242d721192e81b6884",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-m",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "061561247574762a4c873c433852cc32f8567f37595269371705704a60ce1581"
+          },
+          {
+            "commitment_hex": "24c24191b9ba5c87881701934cb25120a8cf601f93547e504109a843bec1d9dc",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "tie_hex": "3d76fca81f5f96850c14a436438eef5bca2abacc52b92bb3fa4bc6ca9b2209e8"
+          },
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-A",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "b86976ee2fa62af0af3de435dfe11a6522a870f063bd2563e4cb9822e50cd531"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-A"
+          },
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-b"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000003000000076167656e742d41f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005000000076167656e742d6224c24191b9ba5c87881701934cb25120a8cf601f93547e504109a843bec1d9dc0000000000000005000000076167656e742d6dd5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005",
+        "transcript_identity_order": [
+          "agent-A",
+          "agent-b",
+          "agent-m"
+        ],
+        "winner": {
+          "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+          "identity": "agent-m",
+          "priority": 5,
+          "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tie_hex": "061561247574762a4c873c433852cc32f8567f37595269371705704a60ce1581"
+        }
+      },
+      "id": "ARB-18-identity-order",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-m",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-A",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "03",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "noncanonical-identity",
+        "ok": false
+      },
+      "id": "ARB-19-noncanonical-identity",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "caf\u00e9",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "duplicate-identity",
+        "ok": false
+      },
+      "id": "ARB-19-duplicate-identity",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "noncanonical-proposal",
+        "ok": false
+      },
+      "id": "ARB-19-bad-hex",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "zz",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "empty-closed-set",
+        "ok": false
+      },
+      "id": "ARB-19-empty",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 2,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "e95fdad761a6e8b740a91713c433d2e47214e4a1f16f04a23f42644d41666994",
+        "closed_set_digest_hex": "4f1c935952de51e6d691100129a1d73269f606bb58921f970132cd95ff06caae",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "255517dbfd271ddbaa5e4cdeeab5caba7f088bccfcbfb40d2ff79bc44b040993"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "57a2576c46e40d5d8a7d88096a02a4b061c603c0b90e9cac235487037d4f1687"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "255517dbfd271ddbaa5e4cdeeab5caba7f088bccfcbfb40d2ff79bc44b040993"
+        }
+      },
+      "id": "ARB-20-parent",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 2,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "2222222222222222222222222222222222222222222222222222222222222222",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 7,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 9,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "75c4b434de15c1d8eba78601405dfa6634424cd7f63da32cec92824815bb1dff",
+        "closed_set_digest_hex": "4f1c935952de51e6d691100129a1d73269f606bb58921f970132cd95ff06caae",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "ae7b3894890b00a5e4f5da301c13efca555c44f30fd1972bfba376a35d7efc74"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+        }
+      },
+      "id": "ARB-20-sequence",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 7,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 9,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "ed6477ad94793298f844f640bc8e2b3de7bcfb5436d40c67588b92a0483bbb19",
+        "closed_set_digest_hex": "204ab85edbd55edf71fa06e18163e5142c52a5660990ec52d0f9a7bc68424654",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "e2cdbcd8bd931f5ff37d9f7d1434e67d33a7595b4977602444b97bb055b1c222"
+          }
+        ],
+        "rejections": [],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000001000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005",
+        "transcript_identity_order": [
+          "agent-a"
+        ],
+        "winner": {
+          "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+          "identity": "agent-a",
+          "priority": 5,
+          "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tie_hex": "e2cdbcd8bd931f5ff37d9f7d1434e67d33a7595b4977602444b97bb055b1c222"
+        }
+      },
+      "id": "ARB-22-body-01",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "f2606b9a1387044ae0cb32c7dec4f387eed64e8dad72f53ff6eab819d2861186",
+        "closed_set_digest_hex": "522841ee2b0986c1908b9be79a93e152fc410a3b61bd4cad46a92d917440fb4e",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "54b410446bca24af8e71690a02487281a3719c7fda8ee952b023a9a8ed39edde",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "4cc4e7665e019035e97550f3d232f9d904f333dd9bac9464127752cbfb189143"
+          }
+        ],
+        "rejections": [],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000001000000076167656e742d6154b410446bca24af8e71690a02487281a3719c7fda8ee952b023a9a8ed39edde0000000000000005",
+        "transcript_identity_order": [
+          "agent-a"
+        ],
+        "winner": {
+          "commitment_hex": "54b410446bca24af8e71690a02487281a3719c7fda8ee952b023a9a8ed39edde",
+          "identity": "agent-a",
+          "priority": 5,
+          "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "tie_hex": "4cc4e7665e019035e97550f3d232f9d904f333dd9bac9464127752cbfb189143"
+        }
+      },
+      "id": "ARB-22-body-02",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "02",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 2,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "75c4b434de15c1d8eba78601405dfa6634424cd7f63da32cec92824815bb1dff",
+        "closed_set_digest_hex": "4f1c935952de51e6d691100129a1d73269f606bb58921f970132cd95ff06caae",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "ae7b3894890b00a5e4f5da301c13efca555c44f30fd1972bfba376a35d7efc74"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+        }
+      },
+      "id": "ARB-23-order-a",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 2,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "audit": [
+          {
+            "admission_seq": 1,
+            "identity": "agent-a"
+          },
+          {
+            "admission_seq": 2,
+            "identity": "agent-b"
+          }
+        ],
+        "canonicalisation_version": 1,
+        "challenge_hex": "75c4b434de15c1d8eba78601405dfa6634424cd7f63da32cec92824815bb1dff",
+        "closed_set_digest_hex": "4f1c935952de51e6d691100129a1d73269f606bb58921f970132cd95ff06caae",
+        "grinding_resistance": "unproven",
+        "ok": true,
+        "policy_digest_hex": "d21926f3274c91b77d3e3102d2134feab07990c45f8774d5e80b16eae911a871",
+        "ranking": [
+          {
+            "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+            "identity": "agent-b",
+            "priority": 5,
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+          },
+          {
+            "commitment_hex": "d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b",
+            "identity": "agent-a",
+            "priority": 5,
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "tie_hex": "ae7b3894890b00a5e4f5da301c13efca555c44f30fd1972bfba376a35d7efc74"
+          }
+        ],
+        "rejections": [
+          {
+            "code": "higher-tie-digest",
+            "identity": "agent-a"
+          }
+        ],
+        "round_id": "round-1",
+        "transcript_hex": "4153582f636c6f7365642d7365742f76310000000002000000076167656e742d61d5e61bb223238c0cfef8e08e272ef04de1f7cbabfe92685fe72de2f4e924e60b0000000000000005000000076167656e742d62f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c2480000000000000005",
+        "transcript_identity_order": [
+          "agent-a",
+          "agent-b"
+        ],
+        "winner": {
+          "commitment_hex": "f4678fddb3142dce8b654e6812744d5127d80333ed92b08a5d528aa5c922c248",
+          "identity": "agent-b",
+          "priority": 5,
+          "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "tie_hex": "89c0213f9087047ef34550d4d941edf0421ab7f4de67238b0cbee9038db45b16"
+        }
+      },
+      "id": "ARB-23-order-b",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "01",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 2,
+            "content_hex": "02",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    },
+    {
+      "expect": {
+        "code": "tie-collision",
+        "ok": false
+      },
+      "id": "tie-collision-identical-body",
+      "record": {
+        "canonicalisation_version": 1,
+        "entries": [
+          {
+            "admission_seq": 1,
+            "content_hex": "07",
+            "identity": "agent-b",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "admission_seq": 2,
+            "content_hex": "07",
+            "identity": "agent-a",
+            "operation": "set",
+            "semantic_ref": "ref:item",
+            "successor_hex": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "parent_hash": "1111111111111111111111111111111111111111111111111111111111111111",
+        "policy": {
+          "fairness": "",
+          "revision": "pol-1",
+          "rules": [
+            {
+              "operation": "set",
+              "priority": 5
+            },
+            {
+              "operation": "urgent",
+              "priority": 9
+            }
+          ]
+        },
+        "round_id": "round-1"
+      }
+    }
+  ],
+  "corpus_version": "1",
+  "note": "Expected outputs were accepted only when src/asx and conformance/independent/recompute.py agreed. This is not an externally developed implementation."
+}

@@ -1,0 +1,67 @@
+{
+  "source": "SCL ModelService responses. This file is a record of those responses, not a signed approval.",
+  "propose_change": {
+    "status": "ok",
+    "model_revision": "ab78f862c360ed57057f5e3c37f9f1409095c1e0a08b313b2746f0c105cc9876",
+    "findings": [],
+    "proposal_id": "proposal-a2a8113c8238daf399d1522a",
+    "proposal_revision": "ff9cf187c7e14385ba2b4d6ef6afb42158ca12037de3d3d0f2c0c25884c7cbf8",
+    "state": "proposed",
+    "approval_verified": false,
+    "validation_status": "valid",
+    "validation_findings": [],
+    "affected_record_total": 64,
+    "relationship_total": 83,
+    "counts": {
+      "changes": 157,
+      "captures": 4,
+      "questions": 6,
+      "records": 64,
+      "relationships": 83,
+      "by_type": {
+        "Intent": 3,
+        "Outcome": 15,
+        "Model": 4,
+        "Requirement": 27,
+        "System": 8,
+        "Actor": 1,
+        "Policy": 3,
+        "Decision": 2,
+        "Project": 1
+      }
+    }
+  },
+  "validate_model": {
+    "status": "ok",
+    "model_revision": "ab78f862c360ed57057f5e3c37f9f1409095c1e0a08b313b2746f0c105cc9876",
+    "findings": [],
+    "data": {
+      "validation_status": "valid",
+      "records": 0,
+      "questions": 0
+    }
+  },
+  "validate_proposal": {
+    "status": "ok",
+    "findings": [],
+    "validation_status": "valid",
+    "validation_findings": [],
+    "state": "proposed",
+    "approval_verified": false
+  },
+  "approve_change_attempt": {
+    "status": "error",
+    "findings": [
+      {
+        "rule": "approval.unavailable",
+        "message": "Proposal-only mode: an administrator must configure SCL_ALLOWED_SIGNERS outside the checkout; a reviewer must sign the approval payload.",
+        "record_id": ""
+      }
+    ],
+    "data_approval_verified": null
+  },
+  "proposal_after_approval_attempt": {
+    "state": "proposed",
+    "approval_present": false
+  }
+}
